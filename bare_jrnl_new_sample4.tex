@@ -1,0 +1,1731 @@
+\documentclass[lettersize,journal]{IEEEtran}
+\usepackage{amsmath,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{array}
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+\usepackage{textcomp}
+\usepackage{stfloats}
+\usepackage{url}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{booktabs}
+\usepackage[american]{circuitikz}
+% \usepackage{matlab-prettifier}
+
+% \lstdefinestyle{code}{
+%     frame = single,
+%     framerule = 0.5pt,
+%     numbers = left,
+%     style = Matlab-editor,
+%     language = Matlab,
+% }
+
+\hyphenation{op-tical net-works semi-conduc-tor IEEE-Xplore}
+% updated with editorial comments 8/9/2021
+
+\begin{document}
+
+\title{The Design and Usage of \\a Operational Amplifier}
+
+\author{Laith Toom and Dennis Lee
+        % <-this % stops a space
+\thanks{This paper was produced by the IEEE Publication Technology Group. They are in Piscataway, NJ.}% <-this % stops a space
+\thanks{Manuscript received April 19, 2021; revised August 16, 2021.}}
+
+% The paper headers
+\markboth{Journal of Operational Amplifier,~Vol.~1, No.~1, December~2024}%
+{Shell \MakeLowercase{\textit{et al.}}: A Sample Article Using IEEEtran.cls for IEEE Journals}
+
+\IEEEpubid{0000--0000/00\$00.00~\copyright~2021 IEEE}
+% Remember, if you use this you must call \IEEEpubidadjcol in the second
+% column for its text to clear the IEEEpubid mark.
+
+\maketitle
+
+\begin{abstract}
+This document details the design of an operational amplifier and 
+using it to design a non-inverting amplifier. The design process 
+of the amplifier will involve a DC analysis for purposes of 
+biasing, an AC analysis for the purposes of gain, and an 
+AC sweep for the purposes of frequency response.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Operational Amplifier, Circuits, Feedback, Frequency Response
+\end{IEEEkeywords}
+
+\section{Introduction}
+\IEEEPARstart{T}{he} Operational Amplifier, otherwise referred to as 
+an Op-Amp, operates on a differential input with an ``open-loop'' gain of 
+typically at or exceeding 60$\,$dB, input resistance of typically at or exceeding 10$\,$M$\Omega$, 
+and output resistance typically at or exceeding 100$\,\Omega$. As such, the 
+current that enters the Op-Amp is typically in the range of $\mu\,$A.
+As such, the ideal Op-Amp is considered to have infinite open-loop gain, 
+infinite input resistance, and zero output resistance. Given this description, 
+an Op-Amp may be implemented in many different ways. The Op-Amp considered 
+here will consist of three stages using BJT transistors: the Q2N3904 and 
+the Q2N3906.
+\begin{figure}[H]
+  \centering
+  \scalebox{1.35}{
+  \begin{circuitikz}
+    \node[plain amp, scale=0.5] at (0, 0) (amp1) {$A_1$}; 
+    \draw (-1, 0.25) node[left, xshift=-1, scale=0.5] {$V_2$} to[short, o-] (amp1.in up);
+    \draw (-1, -0.25) node[left, xshift=-1, scale=0.5] {$V_1$} to[short, o-] (amp1.in down);
+    \draw (amp1.out) -- (1, 0);
+    \node[plain mono amp, scale=0.5] at (1.5, 0) (amp2) {$A_2$}; 
+    \draw (amp2.out) -- (2.5, 0);
+    \node[plain mono amp, scale=0.5] at (3, 0) (amp3) {$A_3$}; 
+    \draw (amp3.out) to[short, -o] (4, 0) node[right, xshift=1, scale=0.5] {$V_o$};
+  \end{circuitikz}
+  }
+  \caption{Multi-Stage Amplifier Representation}
+\end{figure}
+
+Fig. \ref{fig:scheme1} shows the implementation of the Op-Amp without 
+frequency compensation.
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{scheme3.png}
+  \caption{Op-Amp Schematic Without Frequency Compensation}
+  \label{fig:scheme1}
+\end{figure*}
+
+Ideally, the open-loop gain of the Op-Amp is given by the product of the 
+stage gains, however, each stage will have an input and output resistance. Thus, the product 
+of all of the gains will also be multipled by ratios derived from voltage division.
+\begin{equation}
+\label{openLoopGainEq}
+A = A_1 A_2 A_3 \cdot \left(\frac{Z_{i_2}}{Z_{o_1} + Z_{i_2}} \cdot \frac{Z_{i_3}}{Z_{o_2} + Z_{i_3}} \cdot \frac{Z_{L}}{Z_{o_3} + Z_L} \right)
+\end{equation}
+We can call the product of these ratios the ``transmission'' of the 
+Op-Amp and denote it as $\sigma$, where the transmission of each 
+stage will be denoted as $\sigma_1$, $\sigma_2$, and $\sigma_3$ 
+respectively. 
+\begin{equation}
+\label{transmission}
+\sigma = \sigma_1 \sigma_2 \sigma_3 = \frac{Z_{i_2}}{Z_{o_1} + Z_{i_2}} \cdot \frac{Z_{i_3}}{Z_{o_2} + Z_{i_3}} \cdot \frac{Z_{L}}{Z_{o_3} + Z_L}
+\end{equation}
+Ideally, we don't want to lose any output, thus, 
+we want each ratio to be one and this $\sigma$ to be ideally one.
+Practically, $\sigma$ should be 
+close to one if each amplifier stage is designed well. 
+Before the gain of each stage is 
+calculated, we must first consider the biasing of the transistors 
+within the Op-Amp.
+
+\section{The Resistances and Stage Gains of the Op-Amp}
+\subsection{Finding the Resistor Values}
+\subsubsection{Current Mirror Load and Finding Resistor $R_1$}
+The first stage of the Op-Amp, which we will denote $S_1$, 
+will receive the inputs $V_2$ and $V_1$. It will also be 
+supplied directly with a current source; where this current source 
+is constructed using a current mirror.
+\begin{figure}[H]
+  \centering
+  \scalebox{0.85}{
+  \begin{circuitikz}
+    \node[pnp, xscale=-1] at (-1, 0) (Q1) {};
+    \node at (-1.25, 0) {$Q_1$};
+    \node[pnp] at (2, 0) (Q2) {$Q_2$};
+    \draw (Q1.B) to[short, *-] (Q2.B);
+    \node[vcc] at (-1, 1) (vcc) {$V_{\text{CC}}$};
+    \draw (Q1.E) to (vcc);
+    \node[vcc] at (2, 1) (vcc2) {$V_{\text{CC}}$};
+    \draw (Q2.E) to (vcc2);
+
+    \draw (Q1.C) -| (Q1.B);
+    \draw (Q1.C) to[R=$R_1$, f>=$I$, *-] (-1, -3);
+ 
+    \node[vee] at (-1, -3) (vee){$V_{\text{EE}}$};
+    \node[vee] at (2, -3) (vee2){$V_{\text{EE}}$};
+    \draw (Q2.C) to[generic={Load}, f_>=$I$] (vee2);
+  \end{circuitikz}
+  }
+  \caption{The Current Mirror Load}
+\end{figure}
+With the short from base to collector for $Q_1$, the 
+collector voltage of $Q_1$ is now ideally the base voltage 
+of $Q_1$. Since the bases of $Q_1$ and $Q_2$ are shorted together,
+the base voltages of $Q_1$ and $Q_2$ are made ideally equivalent.
+Since the emitters $Q_1$ and $Q_2$ are both wired to $V_{\text{CC}}$, 
+they also have equal emitter voltages. Thus, the base to emitter 
+voltage for $Q_1$ and $Q_2$ are equal. As a result, the current 
+through $Q_1$ will be ideally the same as the current through 
+$Q_2$, and so the current is ``mirrored''. With a nodal analysis, 
+we see that $I$ depends on the potential difference across 
+$R_1$, and with the short from collector to base, we see that 
+this potential difference is $V_{\text{CC}} - (V_{\text{EE}} + V_{\text{BE}})$, 
+thus we have an equation for $I$.
+\begin{equation}
+\label{currentMirror}
+I = \frac{V_{\text{CC}} - V_{\text{EE}} - V_{\text{BE}}}{R_1} %\approx \frac{V_{\text{EE}} - V_{\text{CC}} - 0.7\,\text{V}}{R_1}
+\end{equation}
+$I$ will be the current needed to bias the amplifier, and as such, 
+we can derive an equation for $R_1$ as a function of $I$ using equation 
+\ref{currentMirror}.
+
+\IEEEpubidadjcol
+\begin{equation}
+\label{R1}
+R_1 = \frac{V_{\text{CC}} - V_{\text{EE}} - V_{\text{BE}}}{I} %\approx \frac{V_{\text{EE}} - V_{\text{CC}} - 0.7\,\text{V}}{R_1}
+\end{equation}
+
+Thus, $R_1$ will change the biasing of the Op-Amp, but it will not directly affect 
+the gain of the circuit. This will not be the case for the other resistors.
+
+\subsubsection{The Differential Stage and the First Stage Gain $A_1$}
+The first stage of the Op-Amp is a differential bipolar amplifier; in which 
+PNP transistors are used and the output is single-sided. 
+\begin{figure}[H]
+  \centering
+  \scalebox{0.65}{
+  \begin{circuitikz}
+    \node[pnp, xscale=1] at (-1, 0) (Q3) {$Q_3$};
+    \node[pnp, xscale=-1] at (2, 0) (Q4) {};
+    \node at (1.75, 0) {$Q_4$};
+    \draw (Q3.C) to (-1, -3) node[vee] (vee) {$V_{\text{EE}}$};
+    \draw (Q3.E) to[short, f<=$\frac{I}{2}$] (-1, 2) to (0.5, 2);
+    \draw (Q4.C) to[R=$R_2$] (2, -3) node[vee] (vee2) {$V_{\text{EE}}$};
+    \draw (2, -0.75) to[short, *-o] node[right, xshift=8, yshift=8] {$V_o$} (3.5, -0.75) to [generic = Load] (3.5, -3) node[ground] {};
+    \draw (Q4.E) to[short, f<=$\frac{I}{2}$] (2, 2) to[short, -*] (0.5, 2);
+    \draw (0.5, 4)node[vcc] {$V_{\text{CC}}$} to[I, l=$I$] (0.5, 2);
+
+    \draw (Q4.B) to[short, -o] node[above right] {$V_2$} (3.5, 0);
+    \draw (Q3.B) to[short, -o] node[above left] {$V_1$} (-2.5, 0);
+  \end{circuitikz}
+  }
+  \caption{The Differential Amplifier}
+  \label{fig:differentialamp}
+\end{figure}
+
+\IEEEpubidadjcol
+Since the output of this differential amplifier is fed into another amplifier (the 
+second stage of the Op-Amp), there will be some finite load at the output. The impedance 
+of this load will then be the input impedance of the second stage, $Z_{i_2}$. The 
+small signal equivalent of the differential amplifier can be used to determine the 
+gain $A_1$, but due to the single-sided output, only the half-circuit is needed.  
+However, note that the input is differential, thus the input of the amplifier will 
+be half of the actual input; in which the DC offset goes to AC ground.
+\begin{figure}[H]
+  \centering
+  \scalebox{0.75}{
+  \begin{circuitikz}
+    \draw (2, 4) to (-0.5, 4) to[short, f<={$i_e$}] (-0.5, -3) node[ground] {};
+    \draw (Q4.C) to[R=$R_2$] (2, -3) node[ground] (gnd2) {};
+    \draw (2, -0.75) to[short, *-o] node[right, xshift=8, yshift=8] {$v_o$} (3.5, -0.75) to [generic = $Z_{i_2}$] (3.5, -3) node[ground] {};
+    \draw (2, 2) to[R=$r_{e_4}$] (2, 4); 
+    \draw (2, 2) to[cisource, l={$\beta i_b = i_c$}] (2, -1);
+    \draw (2, 1.65) to[short, *-o, f>=$\dfrac{i_c}{\beta}$] (4, 1.65) node[above right, xshift=-5] {$v_2 = \dfrac{v_i}{2}$};
+  \end{circuitikz}
+  }
+  \caption{The Differential Amplifier Small Signal Equivalent}
+  \label{fig:differentialampsmallsignal}
+\end{figure}
+
+\IEEEpubidadjcol
+From the small signal half circuit, nodal analysis suggests
+\begin{equation}
+\label{eq:analysis1_1}
+i_e = -\frac{v_2}{r_{e_4}} \implies i_e = -\frac{1}{2} g_{m_4}v_i
+\end{equation}
+as well as
+\begin{equation}
+\label{eq:analysis1_2}
+i_c = \frac{v_o}{R_2 \parallel Z_{i_2}}
+\end{equation}
+Using the current relationship between $i_e$ and $i_c$ for a bipolar 
+junction transistor, we also find
+\begin{equation}
+\label{eq:analysis1_3}
+i_c = \frac{\beta}{\beta+1} i_e \implies \frac{v_o}{R_2 \parallel Z_{i_2}} = -\frac{\beta}{2\left(\beta+1\right)} g_{m_4}v_i
+\end{equation}
+From equation \eqref{eq:analysis1_3}, the gain 
+can be derived as so.
+\begin{equation}
+\label{eq:gainA1}
+\frac{v_o}{v_i} = A_1 = -\frac{\beta}{2\left(\beta+1\right)} g_{m_4} \left(R_2 \parallel Z_{i_2}\right)
+\end{equation}
+However, it's not yet clear what resistor values $A_1$ depends on until an expression for 
+$Z_{i_2}$ is found. This impedance will be derived after all of the stage gains are found.
+
+\subsubsection{The Common Emitter Amplifier and the Second Stage Gain $A_2$}
+The second stage of the Op-Amp is a common emitter amplifier; in which a NPN 
+transistor is used.
+\begin{figure}[H]
+  \centering
+  \scalebox{0.70}{
+  \begin{circuitikz}
+    \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_5$};
+
+    \draw (Q5.E) to[R=$R_4$] (-1, -3) node[vee] (vee) {$V_{\text{EE}}$};
+    \draw (Q5.C) to[R=$R_3$] (-1, 3) node[vcc] (vcc) {$V_{\text{cc}}$};
+    \draw (0.75, 0.75) to [generic=Load] (0.75, -2) node[ground] {};
+    \draw (-1, 0.75) to [short, *-o] (0.75, 0.75) node[above right] {$V_o$};
+    \draw (-3, 0) node[above left] {$V_i$} to [short, o-] (Q5.B);
+  \end{circuitikz}
+  }
+  \caption{The Common Emitter Amplifier}
+  \label{fig:commonemitter}
+\end{figure}
+Similar to the first stage, the output of the common emitter amplifier will be 
+fed into the third stage, and the impedance of the load will then be the input 
+impedance of the third stage, $Z_{i_3}$. The gain can be determined by using 
+the small signal equivalent model.
+
+\IEEEpubidadjcol
+\begin{figure}[H]
+  \centering
+  \scalebox{0.70}{
+  \begin{circuitikz}
+    % \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_5$};
+
+    \draw (Q5.E) to[R=$R_4$, f=$i_e$] (-1, -3) node[ground] {};
+    \draw (0.75, 0.75) to [R=$R_3 \parallel Z_{i_3}$] (0.75, -3) node[ground] {};
+    % \draw (-1, 0.75) to [short, *-o] (0.75, 0.75) node[above right] {$V_o$};
+    \draw (-3, 2) node[above left] {$v_i$} to [short, o-, f_>=$\dfrac{i_c}{\beta}$] (-1, 2);
+    \draw (-1, 2) to[R=$r_{e_5}$] (-1, -1);
+    \draw (-1, 4) to[cisource, l_={$g_{m_5}v_{be} = i_c$}] (-1, 2);
+    \draw (-1, 4) to (0.75, 4) to (0.75, 0.75);
+    \draw (0.75, 0) to[short, -o] (2, 0) node[above right] {$v_o$};
+  \end{circuitikz}
+  }
+  \caption{The Common Emitter Amplifier Small Signal Equivalent}
+  \label{fig:commonemittersmallsignal}
+\end{figure}
+
+From the small signal equivalent model, $i_e$ and $i_e$ can be expressed using 
+Ohm's Law.
+\begin{align}
+\label{eq:analysis2_1}
+i_c &= -\frac{v_o}{R_3 \parallel Z_{i_3}} \\[1.5ex]
+i_e &= \frac{v_i}{r_{e_5} + R_4}
+\end{align}
+Thus, the gain $A_2$ can be derived.
+\begin{align}
+\label{gainA2}
+\frac{v_o}{v_i} = A_2 = -\frac{R_3 \parallel Z_{i_3}}{r_{e_5} + R_4}
+\end{align}
+As with the first stage gain, $Z_{i_3}$ must be derived before determing which 
+resistors the second stage gain will depend on.
+
+\subsubsection{The Common Collector Amplifier and the Third Stage Gain $A_3$}
+The third stage of the Op-Amp is a common collector amplifier; which is 
+also known as a emitter-follower, and is implemented using a NPN transistor.
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.70}{
+  \begin{circuitikz}
+    \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_6$};
+
+    \draw (Q5.E) to[R=$R_5$] (-1, -4) node[vee] (vee) {$V_{\text{EE}}$};
+    \draw (Q5.C) to (-1, 2) node[vcc] (vcc) {$V_{\text{cc}}$};
+    \draw (0.75, -1) to [generic=Load] (0.75, -4) node[ground] {};
+    \draw (-1, -1) to [short, *-o] (0.75, -1) node[above right] {$V_o$};
+    \draw (-3, 0) node[above left] {$V_i$} to [short, o-] (Q5.B);
+  \end{circuitikz}
+  }
+  \caption{The Emitter-Follower}
+  \label{fig:emitterfollower}
+\end{figure}
+
+While the output of this amplifier will not be fed into another stage, 
+it will be connected to some load, such as a feedback system.
+That said, this is simply a buffer amplifier; in which there is no amplification 
+nor, ideally speaking, attenuation. By using the small signal model,
+this can be proven.
+
+\IEEEpubidadjcol
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.70}{
+  \begin{circuitikz}
+    % \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_5$};
+
+    \draw (Q5.E) to[R, l_=$R_5\parallel Z_L$, f=$i_e$] (-1, -3) node[ground] {};
+    \draw (0.75, 0.75) to (0.75, -3) node[ground] {};
+    % \draw (-1, 0.75) to [short, *-o] (0.75, 0.75) node[above right] {$V_o$};
+    \draw (-3, 2) node[above left] {$v_i$} to [short, o-, f_>=$\dfrac{i_c}{\beta}$] (-1, 2);
+    \draw (-1, 2) to[R=$r_{e_6}$] (-1, -1);
+    \draw (-1, 4) to[cisource, l_={$g_{m_6}v_{be} = i_c$}] (-1, 2);
+    \draw (-1, 4) to (0.75, 4) to (0.75, 0.75);
+    \draw (-1, -0.75) to[short, *-o] (-2.5, -0.75) node[above left] {$v_o$};
+  \end{circuitikz}
+  }
+  \caption{The Emitter-Follower Small Signal Equivalent}
+  \label{fig:emitterfollowersmallsignal}
+\end{figure}
+
+From the small signal model, $v_o$ can be expressed using voltage division, 
+in which $r_{e_6}$ and $R_5 \parallel Z_L$ form the voltage divider.
+\begin{equation}
+\label{eq:analysis3_1}
+v_o = \frac{R_5 \parallel Z_L}{r_{e_6} + R_5 \parallel Z_L} v_i 
+\end{equation}
+Thus, the gain of the third stage can be derived.
+\begin{equation}
+\label{gainA3}
+\frac{v_o}{v_i} = A_3 = \frac{R_5 \parallel Z_L}{r_{e_6} + R_5 \parallel Z_L}
+\end{equation}
+Note that for $Z_L = \infty$, the equation is simplified.
+\begin{equation}
+\label{gainA3_ZLinfty}
+\frac{v_o}{v_i} = A_3 = \frac{R_5}{r_{e_6} + R_5}
+\end{equation}
+Practically, $r_{e_6}$ is usually magnitudes smaller than $R_5 \parallel Z_L$;
+in which both $Z_L$ and $R_5$ are usually magnitudes above $r_{e_6}$. Thus, 
+there are two limit conditions we can consider for $A_3$ to verify that the 
+third stage is indeed a buffer amp. 
+\begin{align}
+\label{limits1}
+\lim_{r_{e_6} \rightarrow 0} \,\frac{R_5 \parallel Z_L}{r_{e_6} + R_5 \parallel Z_L} &= \frac{R_5 \parallel Z_L}{R_5 \parallel Z_L} = 1 \\[1ex]
+\lim_{R_5\parallel Z_L \rightarrow \infty} \,\frac{R_5 \parallel Z_L}{r_{e_6} + R_5 \parallel Z_L} &= \lim_{R_5\parallel Z_L \rightarrow \infty} \frac{R_5 \parallel Z_L}{R_5 \parallel Z_L} = 1
+\end{align}
+However, if $Z_L$ is magnitudes smaller than $R_5$ and not magnitudes larger than 
+$r_{e_6}$, then there will be a notable attenuation. The same applies if $R_5$ is magnitudes 
+smaller than $Z_L$ and not magnitudes larger than $r_{e_6}$. Practically speaking, 
+the gain of this stage will never be 1 V/V, but it should be within 5\% of 1 V/V.
+A fair assumption of $A_3$ would be 0.99 V/V, but this all depends on $R_5$ and $Z_L$.
+Note that while we are solving for stage gains here, $R_5$ will affect the biasing of the 
+the third stage, so it will affect $r_{e_6}$ as well.
+
+\subsection{Finding the Input and Output Resistances}
+\subsubsection{The Input and Output Resistance of the First Stage}
+This resistance, seeing as the first stage is essentially the input stage, 
+is also the input resistance of the Op-Amp. Thus, the 
+resistance is expected to be in or above the mega-ohm range. In order to find this 
+resistance, turn off all independent sources and apply a test source where the 
+resistance is met. For the first stage, recall Fig. \ref{fig:differentialampsmallsignal}
+and replace the differential input with test source $v_x$.
+
+\IEEEpubidadjcol
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.75}{
+  \begin{circuitikz}
+    \draw (2, 4) to (-0.5, 4) to[short, f={$i_e$}] (-0.5, -3) node[ground] {};
+    \draw (Q4.C) to[R=$R_2\parallel Z_{i_2}$] (2, -3) node[ground] (gnd2) {};
+    \draw (2, -0.75) to[short, *-o] node[right, xshift=8, yshift=8] {$v_o$} (3.5, -0.75);
+    \draw (2, 2) to[R=$r_{e_4}$] (2, 4); 
+    \draw (2, -1) to[cisource, l_={$\beta i_b = i_c$}] (2, 2);
+    \draw (2, 1.65) to[short, *-o, f<={$\dfrac{i_c}{\beta} = i_x$}] (5, 1.65) node[above right, xshift=-5] {$v_x$};
+    \draw[-latex, thick] (4.5, 1) to (4.5, 3.5) to (3.5, 3.5) node[above right] {$Z_{i_1} = \dfrac{v_x}{i_x}$};
+  \end{circuitikz}
+  }
+  \caption{Testing the Differential Amplifier for Input Resistance}
+  \label{fig:differentialampinputresist}
+\end{figure}
+
+Either by reflecting the emitter resistance $r_{e_4}$ to the base or by using nodal analysis 
+with the current relation between $i_e$ and $i_b$, the input resistance is easily 
+derived. We will use nodal analysis to find $Z_{i_1}$.
+\begin{align}
+  i_e &= \frac{v_x}{r_{e_4}} \\[1ex]
+  i_x &= i_b \\[1ex]
+  i_e &= (1+\beta)i_b \\[1ex]
+      &\implies \frac{v_x}{r_{e_4}} = (1+\beta)i_x \\[1ex]
+      &\implies \frac{v_x}{i_x} = \boxed{Z_{i_1} = (1+\beta)r_{e_4}}
+\end{align}
+
+Starting with the same small signal model, we can ground the input terminal and 
+place a test source at the output terminal to find the output impedance 
+of the first stage, $Z_{o_1}$. However, since we are inputting a source at the 
+output, we will not consider the load is $Z_{i_3}$. Instead, this load will be 
+disconnected.
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.75}{
+  \begin{circuitikz}
+    \draw (2, 4) to (-0.5, 4) to[short, f_={$i_e$}] (-0.5, -4) node[ground] {};
+    \draw (Q4.C) to[R=$R_2$] (2, -4) node[ground] (gnd2) {};
+    \draw (2, -1) to[short, *-o, f_<=$i_x$] node[right, xshift=20, yshift=8] {$v_x$} (5, -1);
+    \draw (2, 2) to[R=$r_{e_4}$] (2, 4); 
+    \draw (2, -1) to[cisource, l={$\beta i_b = i_c$}] (2, 2);
+    \draw (2, 1.85) to[short, *-, f<={$i_b = 0\,\text{A}$}] (5, 1.85) to (5, 1.6) node[ground] {};
+    \draw[-latex, thick] (4.5, -2) to (4.5, -0.25) to (3.5, -0.25) node[above right] {$Z_{o_1} = \dfrac{v_x}{i_x}$};
+  \end{circuitikz}
+  }
+  \caption{Testing the Differential Amplifier for Output Resistance}
+  \label{fig:differentialampoutputresist}
+\end{figure}
+
+Since the input is grounded, this means there is no voltage applied at the 
+base of the transistor. Thus, there is no current flowing into the terminal, 
+making $i_e = i_c = 0\,\text{A}$ as they directly depend on $i_b$. As such, the 
+dependent current source supplies no current, and so the current $i_x$ is not 
+split. 
+
+\IEEEpubidadjcol
+
+\begin{align}
+  i_x &= \frac{v_x}{R_2} \\[1ex]
+      &\implies \frac{v_x}{i_x} = Z_{o_1} = R_2
+\end{align}
+
+\subsubsection{The Input and Output Resistance of the Second Stage}
+The same process applied to the first stage is used here, however, 
+now recall Fig. \ref{fig:commonemittersmallsignal} as the circuit to 
+analyze.
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.70}{
+  \begin{circuitikz}
+    % \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_5$};
+
+    \draw (Q5.E) to[R=$R_4$, f=$i_e$] (-1, -3) node[ground] {};
+    \draw (0.75, 0.75) to [R=$R_3 \parallel Z_{i_3}$] (0.75, -3) node[ground] {};
+    % \draw (-1, 0.75) to [short, *-o] (0.75, 0.75) node[above right] {$V_o$};
+    \draw (-5, 2) node[above left] {$v_x$} to [short, o-*, f_>=$i_b$] (-1, 2);
+    \draw[-stealth, thick] (-4.5, 1) to (-4.5, 3) to (-3.5, 3) node[above left] {$Z_{i_2}$};
+    \draw (-1, 2) to[R=$r_{e_5}$] (-1, -1);
+    \draw (-1, 4) to[cisource, l_={$\beta i_b = i_c$}] (-1, 2);
+    \draw (-1, 4) to (0.75, 4) to (0.75, 0.75);
+    \draw (0.75, 0) to[short, -o] (2, 0) node[above right] {$v_o$};
+  \end{circuitikz}
+  }
+  \caption{Testing the Common Emitter Amplifier for Input Resistance}
+  \label{fig:commonemitterinputresist}
+\end{figure}
+
+Using nodal analysis, finding the input impedance is a simple process.
+\begin{align}
+  i_b &= i_x \\[1ex]
+  i_e &= (1+\beta) i_b \\[1ex]
+  i_e &= \frac{v_x}{r_{e_5}+R_4} \\[1ex]
+      &\implies (1+\beta)i_x = \frac{v_x}{r_{e_5} + R_4} \\[1ex]
+      &\implies \frac{v_x}{i_x} = Z_{i_2} = (\beta+1)(r_{e_5} + R_4)  
+\end{align}
+
+Looking at Fig. \ref{fig:commonemitterinputresist}, if the input terminal 
+is grounded and $v_x$ is placed at the output terminal, it's clear to see 
+that the output resistance is simply $R_3$.
+\begin{equation}
+  \label{eq:outputresist2}
+  Z_{o_2} = R_3
+\end{equation}
+
+\subsubsection{The Input and Output Resistance of the Third Stage}
+Recall the small signal model of the third stage 
+(Fig. \ref{fig:emitterfollowersmallsignal}). The same process used for 
+the previous two stages can be used here.
+
+\IEEEpubidadjcol
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.6}{
+  \begin{circuitikz}
+    % \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_5$};
+
+    \draw (Q5.E) to[R, l_=$R_5\parallel Z_L$] (-1, -3) node[ground] {};
+    \draw (0.75, 0.75) to (0.75, -3) node[ground] {};
+    % \draw (-1, 0.75) to [short, *-o] (0.75, 0.75) node[above right] {$V_o$};
+    \draw (-4, 2) node[above left] {$v_i$} to [short, o-*] (-1, 2);
+    \draw (-1, 2) to[R=$r_{e_6}$] (-1, -1);
+    \draw (-1, 4) to[cisource] (-1, 2);
+    \draw (-1, 4) to (0.75, 4) to (0.75, 0.75);
+    \draw (-4, -0.75) node[above left] {$v_o$} to[short, o-*] (-1, -0.75);
+
+    \draw[thick, -stealth] (-3.5, 1.5) to (-3.5, 2.5) to (-2.5, 2.5) node[above left] {$Z_{i_3}$};
+    % \draw[thick, -stealth] (-3.5, -1.25) to (-3.5, -0.25) to (-2.5, -0.25) node[above left] {$Z_{o_3}$};
+  \end{circuitikz}
+  % \hspace{1em}
+  \hspace{2.5em}
+  \begin{circuitikz}
+    % \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_5$};
+
+    \draw (Q5.E) to[R, l_=$R_5$] (-1, -3) node[ground] {};
+    \draw (0.75, 0.75) to (0.75, -3) node[ground] {};
+    % \draw (-1, 0.75) to [short, *-o] (0.75, 0.75) node[above right] {$V_o$};
+    \draw (-4, 2) node[above left] {$v_i$} to [short, o-*] (-1, 2);
+    \draw (-1, 2) to[R=$r_{e_6}$] (-1, -1);
+    \draw (-1, 4) to[cisource] (-1, 2);
+    \draw (-1, 4) to (0.75, 4) to (0.75, 0.75);
+    \draw (-4, -0.75) node[above left] {$v_o$} to[short, o-*] (-1, -0.75);
+
+    % \draw[thick, -stealth] (-3.5, 1.5) to (-3.5, 2.5) to (-2.5, 2.5) node[above left] {$Z_{i_3}$};
+    \draw[thick, -stealth] (-3.5, -1.25) to (-3.5, -0.25) to (-2.5, -0.25) node[above left] {$Z_{o_3}$};
+  \end{circuitikz}
+  }
+  \caption{Testing the Emitter-Follower for Input and Output Impedance}
+  \label{fig:emitterfollowerresistances}
+\end{figure}
+
+From this circuit, the input and output impedances are easy to see. 
+For the input resistance, $r_{e_6}$ and $R_5\parallel{Z_L}$ are in series, 
+thus they can be reflected to the base as a sum. 
+\begin{equation}
+  \label{stage3inputresist}
+  Z_{i_3} = (\beta+1)(r_{e_6} + R_5\parallel Z_L)
+\end{equation}
+
+For the output resistance, $r_{e_6}$ and $R_5$ are in parallel.
+\begin{equation}
+  \label{stage3outputresist}
+  Z_{o_3} = r_{e_6} \parallel R_5 
+\end{equation}
+
+\subsection{The Resistor Dependent Gain Equation}
+With all of the resistances and gains found, it's now possible to 
+write an equation for $A$.
+{
+\begin{align}
+  A_1 &= -\frac{\beta (R_2 \parallel (\beta+1) (r_{e_5} + R_4))}{2(\beta+1)r_{e_4}} \\[1ex]
+  A_2 &= -\frac{R_3 \parallel (\beta+1)(r_{e_6} + R_5 \parallel Z_L)}{r_{e_5} + R_4} \\[1ex]
+  \sigma_1 &= \frac{(\beta+1)(r_{e_5} + R_4)}{R_2  + (\beta+1)(r_{e_5} + R_4)} \\[1ex]
+  \sigma_2 &= \frac{(\beta+1)(r_{e_6} + R_5 \parallel Z_L)}{R_3 + (\beta+1)(r_{e_6} + R_5 \parallel Z_L)} \\[1ex]
+  \sigma_3 &= \frac{Z_L}{(r_{e_6} \parallel R_5)  + Z_L} \\[1ex]
+  A &= A_1 A_2 A_3 \cdot \sigma_1 \sigma_2 \sigma_3 = A' \cdot \sigma
+\end{align}}
+See Eq. \eqref{eq:resistorGainEq} for the full equation for $A'$ and 
+Eq. \ref{eq:transmissionEq} for the full equation of $\sigma$. Since $\sigma\approx1$, 
+$A'$ is the primary concern for determing $A$. Since $A$ depends on the value 
+of the emitter resistances, recall that the emitter resistances depend on the 
+collector current flowing through the transistors, and those currents depend 
+on the resistor values chosen for the Op-Amp. Thus, the resistor values must 
+be chosen with consideration for gain $A$ and proper biasing.
+
+\begin{figure*}[!t]
+\begin{equation}
+  \label{eq:resistorGainEq}
+  A' = \frac{\beta (R_2 \parallel (\beta+1) (r_{e_5} + R_4))}{2(\beta+1)r_{e_4}} \cdot \frac{R_3 \parallel (\beta+1)(r_{e_6} + R_5 \parallel Z_L)}{r_{e_5} + R_4}\cdot\frac{R_5}{r_{e_6} + R_5}
+\end{equation}
+\hfill
+\end{figure*}
+\begin{figure*}[!t]
+\begin{equation}
+  \label{eq:transmissionEq}
+  \sigma = \frac{(\beta+1)(r_{e_5} + R_4)}{R_2  + (\beta+1)(r_{e_5} + R_4)} \cdot \frac{(\beta+1)(r_{e_6} + R_5 \parallel Z_L)}{R_3 + (\beta+1)(r_{e_6} + R_5 \parallel Z_L)} \cdot \frac{Z_L}{(r_{e_6} \parallel R_5)  + Z_L}
+\end{equation}
+\hrulefill
+\end{figure*}
+
+\section{The DC Biasing \\of the Op-Amp}
+Recall that the emitter resistance of a BJT is given by the ratio of 
+the thermal voltage $V_T$ to the collector current $I_c$.
+\begin{equation}
+  r_e = \frac{V_T}{I_c}
+\end{equation}
+Looking back to the current mirror (Fig. \ref{currentMirror}) and 
+Eq. \eqref{R1}, this is where the main part of the biasing comes into play. 
+With the equation, $I$ can be anything. As such, we can already control 
+$r_{e_4}$ in regards to current.
+\begin{align}
+  I_{c_4} &= \frac{\beta}{\beta + 1} I_{e_4} \\[1ex]
+  I_{e_4} &= \frac{I}{2} \\[1ex]
+  r_{e_4} &= \frac{V_T}{I_{c_4}} = \frac{2 \left(\beta+1\right) V_T}{\beta I}\label{re4}
+\end{align}
+In regards to $r_{e_5}$, the base current of $Q_5$ will be 
+given by current division.
+{\footnotesize
+\begin{align}
+  I_{b_5} &= \frac{R_2}{R_2 + Z_{i_2}} I_{c_4} \\[1ex]
+          &\implies I_{b_5} = \frac{R_2}{R_2 + Z_{i_2}}\left(\frac{\beta}{\beta + 1}\right)\frac{I}{2} \\[1ex]
+          &\implies I_{c_5} = \frac{R_2}{R_2 + Z_{i_2}}\left(\frac{\beta^2}{\beta + 1}\right)\frac{I}{2} \\[1ex]
+  I_{c_5} &= \frac{V_T}{r_{e_5}} \\[1ex]
+          &\implies \frac{(\beta+1)r_{e_5} + (\beta + 1)R_4 + R_2}{r_{e_5}} = \frac{R_2}{V_T} \left(\frac{\beta^2}{2(\beta+1)}\right)I \\[1ex]
+          &\implies r_{e_5} = \frac{R_2 + (\beta+1)R_4}{\dfrac{\beta^2 I R_2}{2(\beta+1)V_T} - (\beta + 1)}\label{re5}
+\end{align}
+}
+Then for $r_{e_6}$, the base current of $Q_6$ will be given by another 
+current division; in which the collector current of $Q_5$ will be divided between 
+$R_3$ and $Z_{i_3}$.
+{\footnotesize
+\begin{align}
+  I_{b_6} &= \frac{R_3}{R_3 + Z_{i_3}} I_{c_5} \\[1ex]
+          &\implies I_{b_6} = \frac{R_3}{R_3 + Z_{i_3}}\cdot\frac{R_2}{R_2 + Z_{i_2}}\left(\frac{\beta^2}{\beta + 1}\right)\frac{I}{2} \\[1ex]
+          &\implies I_{c_6} = \frac{R_3}{R_3 + Z_{i_3}}\cdot\frac{R_2}{R_2 + Z_{i_2}}\left(\frac{\beta^3}{\beta + 1}\right)\frac{I}{2} \\[1ex]
+  I_{c_6} &= \frac{V_T}{r_{e_6}} \\[1ex]
+          &\implies r_{e_6} = \frac{R_3 + (\beta+1)(R_5\parallel Z_L)}{\dfrac{\beta^3 I R_3}{2(\beta+1)V_T} \left(\dfrac{R_2}{R_2 + Z_{i_2}}\right) - (\beta + 1)}\label{re6}
+\end{align}
+}
+However, despite deriving these equations, tweaking the resistor values based off 
+of these equations will not always match the measured gain. This is because the 
+equations always assume the transistors are always operating in active mode, and 
+if a change in a resistor value pushes a transistor into saturation, these 
+equations are no longer applicable.
+
+\section{Experimenting with Resistor Values}
+While calculating the resistor values would be both difficult and 
+likely inefficient, the equation derived for the open-loop gain without 
+considering transmission loss, see Eq. \eqref{eq:resistorGainEq}, 
+provides some incentive on how to tweak the resistor values.
+
+\subsection{Current Mirror Load}
+For the current mirror, $R_1$ set to 76.8$\,$k$\Omega$ was found to 
+properly bias the amplifier; in which the current supplied using 
+this resistance can be calculated using Eq. \eqref{currentMirror}, 
+and when calculated, provides $I \approx 0.512\,$mA.
+
+\subsection{First Stage}
+For the first stage, since $R_2$ is in parallel with $Z_{i_2}$, 
+increasing $R_2$ will not increase the gain. Instead, the parallel 
+combination will approach the lesser resistance. So in order to 
+increase the gain of the first stage, setting $R_2$ to $3.5\,\text{k}\Omega$ 
+and tweaking $R_4$ would be a decent method.
+
+\subsection{Second Stage}
+Note that the second stage gain is inversely proportional to $R_4$, so 
+while setting $R_4$ to a very high value would seem like a good 
+idea as to increase the first stage gain, we instead want to 
+limit $R_4$. Since $R_4$ is scaled by $\beta+1$ for the previous stage, 
+this means $R_4$ will already be far larger from the perspective of the 
+first stage than for the second stage. In this case, setting $R_4$ to 
+$1.2\,\text{k}\Omega$ provides satisfactory results.
+
+As for $R_3$, we have the same situation as with the first stage. Thus, 
+we should pick a value for $R_3$ and then tweak $R_5$. As such, 
+setting $R_3$ to $100\,\text{k}\Omega$ provides good results.
+
+\subsection{Third Stage}
+With the third stage, setting $R_5$ to a very large value, such as in the 
+megaohms, would work unlike the first stage since, as Eq. \eqref{gainA3}
+suggests, $R_5 \gg r_{e_6}$ provides gain close to 0$\,$dB, which is ideal.
+However, this is only the case 
+when the Op-Amp is not supplying a finite load. When a finite load $Z_L$ is attached 
+to the output terminal of the Op-Amp, $R_5$ will be parallel to this impedance, 
+and as shown in Eq. \eqref{gainA3}, this effects the gain of the buffer stage.
+The effect can be shown by limits in which $Z_L$ is kept constant while $R_5$ is taken to 
+infinity.
+\begin{equation}
+  \lim_{R_5 \rightarrow \infty} \frac{R_5 \parallel Z_L}{r_{e_6} + R_5\parallel Z_L} = \frac{Z_L}{r_{e_6} + Z_L}
+\end{equation}
+With this simplification, it is clear to see that $R_5$ is eventually disregarded 
+as it is increased. This behavior is non-ideal because this means that the gain 
+now depends largely on $Z_L$. Specifically, the measure of how large $Z_L$ is to 
+$r_{e_6}$. For example, if $R_5$ was chosen to be 1000$r_{e_6}$, then the buffer gain 
+without a load would be $\frac{1000}{1001}\,$V/V (see Eq. \eqref{gainA3_ZLinfty}).
+However, if we connect a load of $Z_L = 100r_{e_6}$, then firstly, the 
+parallel combination can be computed. From there, we can compute the gain.
+\begin{align}
+  Z_L \parallel R_5 &= 100r_{e_6} \parallel 1000r_{e_6} \\[1ex]
+                    &= \frac{100r_{e_6} \cdot 1000r_{e_6}}{100r_{e_6} + 1000r_{e_6}} \\[1ex]
+                    &= \frac{10^5}{1100}\cdot r_{e_6} \\[1ex]
+       \implies A_3 &= \frac{\frac{10^5}{1100}r_{e_6}}{r_{e_6} + \frac{10^5}{1100}r_{e_6}} \\[1ex]
+                    &= \dfrac{\left(\frac{10^5}{1100}\right)}{\left(\frac{10^5 + 1100}{1100}\right)} \\[1ex]
+                    &= \frac{10^5}{10^5 + 1100} = \frac{1000}{1011} \,\text{V/V} \\[1ex]
+\implies \Delta A_3 &= \frac{1000}{1001} - \frac{1000}{1011} \approx 10^{-2} \,\text{V/V} \\[1ex]
+                    &\approx 0.0863 \,\text{dB}
+\end{align}
+While $R_5$ and $Z_L$ only differed by a factor of ten, it's clear to see that this loss in 
+gain can be increased if this factor increases, and that would be very likely if 
+$R_5$ is in the range of megaohms. Thus, $R_5$ was chosen to be 80$\,$k$\Omega$.
+
+\section{Op-Amp Specifications With Regards to Resistor Values}
+\subsection{Power Dissipation}
+With the resistor values chosen, the power dissipated by the Op-Amp 
+is easily calculated. For currents that flow to $V_{\text{EE}}$, 
+the sum of those currents multiplied by $V_{\text{EE}}$ provides 
+the power dissipated as a result of those currents.
+\begin{equation}
+  P_{\text{EE}} = \left|{V_{\text{EE}}}\right| \sum_{i=1}^N I_i
+\end{equation}
+Then for currents flowing to $V_{\text{CC}}$, replace $V_{\text{EE}}$ with 
+$V_{\text{CC}}$.
+\begin{equation}
+  P_{\text{CC}} = V_{\text{CC}} \sum_{i=1}^M I_i
+\end{equation}
+Thus, the total power dissipation is given by the following equation.
+\begin{equation}
+  P_{\text{net}} = V_{\text{CC}} \sum_{i=1}^M I_i + \left|{V_{\text{EE}}}\right| \sum_{i=1}^N I_i
+\end{equation}
+With this equation, the total power dissipation was found to be 58 mW. The simulation 
+reported a total power dissipation of 58.4 mW.
+
+\subsection{Input Bias Current}
+Due to the nature of BJTs, there is some current introduced by the input terminal into 
+our Op-Amp design. As such, this current is called the input current or 
+input bias current. This current was found to be approximately 1 microamp.
+
+\subsection{Measured Open-Loop Gain}
+When performing an AC Sweep, the open-loop gain was found to be 61.84 dB. 
+When applying equations \eqref{transmission}, \eqref{eq:resistorGainEq}, \eqref{re4}, 
+\eqref{re5}, and \eqref{re6}; the open-loop gain was calculated to be 62.6109 dB. 
+Thus, the difference relative to the calculation was approximately 1.2\%.
+\begin{equation}
+  E\% = \frac{A_{\text{calculated}} - A_{\text{measured}}}{A_{\text{calculated}}} \approx 1.23 \% 
+\end{equation}
+
+%  \begin{table}[H]
+%   \centering
+%   \caption{Stage Gain Calculation Values}
+%   \label{tab:gainsCalcs}
+%   \scalebox{0.9}{
+%   \begin{tabular}{l c c}
+%     \toprule
+%     Stage & Gain Calculation \\
+%     \midrule
+%     $A_1$ & 17.0042$\,$V/V \\
+%     $A_2$ & 80.5404$\,$V/V \\
+%     $A_3$ & 0.9996$\,$V/V \\
+%     \bottomrule
+%   \end{tabular}
+%   }
+% \end{table}
+The value of $\sigma$ was about 0.987.
+
+\subsection{Open-Loop Bandwidth and Dominant Pole}
+Bode plots for the open-loop gain and phase were created in Matlab.
+See Fig. \ref{fig:openloopgainBode} for open-loop gain and \ref{fig:openloopphaseBode}
+for open-loop phase. The plots suggests that a pole exists at 258.73 kHz, thus a 
+bandwidth of 0 Hz to 258.73 kHz.
+
+\subsection{Common-Mode Input Range}
+For the common-mode input range, the circuit analysis is only 
+concerned with the first stage of the Op-Amp since it acts as the 
+input stage. As such, referring back to Fig. \ref{fig:differentialamp},
+$V_{\text{CM}_{\text{min}}}$ and $V_{\text{CM}_{\text{max}}}$ can be 
+calculated by assuming the 
+saturation conditions $V_{CB} = 0.4\,$V, $V_{CE} = 0.3\,$V, and $V_{EB} = 0.7\,$V.
+\begin{align}
+  V_{\text{CM}_{\text{min}}} &= I_cR_2 + V_{CB} - V_{\text{CC}} \\
+                             &\approx \frac{I}{2}R_2 + V_{CE} - V_{\text{CC}} = -18.7045\,\text{V} \\
+  V_{\text{CM}_{\text{max}}} &= V_{\text{CC}} - V_{CE} - V_{EB} = 19\,\text{V}
+\end{align}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/OpenLoopGain.png}
+  \caption{Bode Plot of Open-Loop Gain}
+  \label{fig:openloopgainBode}
+% \hrulefill
+\end{figure*}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/OpenLoopPhase.png}
+  \caption{Bode Plot of Open-Loop Phase} 
+  \label{fig:openloopphaseBode}
+  \hrulefill
+\end{figure*}
+
+\section{DC Transfer Characteristics}
+Now with the Op-Amp designed, we can now perform various tests on the 
+Op-Amp. For the DC transfer characteristics of the Op-Amp, we will consider 
+that the inverting terminal is grounded, the non-inverting terminal is 
+connected to a DC supply, and there is a 10$\,$k$\Omega$ load.
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.75}{
+  \begin{circuitikz}
+    \node[op amp] at (0, 0) (opamp) {$A$};
+    \draw (opamp.+) to (-3, -0.5) to[battery] node[above right, yshift=20, xshift=15] {$V_i$} (-3, -3) node[ground] {};
+    \draw (opamp.-) to (-4, 0.5) to (-4, 0) node[ground] {};
+    \draw (opamp.out) to (2, 0) to[R, l={$R_L=10\,$k$\Omega$}] (2, -2) node[ground] {};
+  \end{circuitikz}
+  }
+\end{figure}
+
+We will sweep $V_i$ from -100$\,$mV to 100$\,$mV in steps of 0.1$\,$mV, and the slope of the 
+linear aspect of the DC Transfer characteristics will yield the gain. This 
+gain be compared to the calculation of $A'\sigma$. The data collected from the 
+DC sweep was processed in Matlab (see Fig. \ref{fig:dctransfer}).
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/DC_Transfer.png}
+  \caption{DC Transfer Characteristics}
+  \label{fig:dctransfer}
+\hrulefill
+\end{figure*}
+
+From the plot, the closest eyeball approximation to linear behavior between $V_i$ and 
+$V_o$ is between 1$\,$mV and 6$\,$mV, in which the slope was calculated to be 1105.5$\,$V/V, or in 
+units of decibels, 60.871$\,$dB. With the formula derived for the open-loop gain, the 
+calculation provided 62.02$\,$dB, thus presenting an error of approximately 2\% 
+relative to the calculation.
+
+\begin{equation}
+  E\% = \frac{A_{\text{calculated}} - A_{\text{measured}}}{A_{\text{calculated}}} \approx 1.94\% 
+\end{equation}
+
+Compared to the gain with no attached load, which is equivalent to saying 
+$Z_L = \infty$, there is an approximate loss of 0.969$\,$dB, and this makes 
+sense as $Z_L = 10\,$k$\Omega$ while $R_5 = 80\,$k$\Omega$.
+
+\section{Frequency Compensation}
+Reviewing %Fig. \ref{fig:scheme1}, 
+the bode plots (see Fig. \ref{fig:openloopgainBode} and 
+Fig. \ref{fig:openloopphaseBode}), we see that at 0$\,$dB, 
+the phase shift is past -180$^\circ$. As such, the system is 
+unstable, or rather, if we were to introduce feedback, the 
+system would undergo positive feedback. In order to implement 
+the various Op-Amp circuits we are familiar with, such as a 
+non-inverting amplifier or a weighted summer, we need to 
+alter the design such that the phase shift is within -180$^\circ$ 
+to $180^\circ$ when the gain is 0$\,$dB. While there are a few 
+different methods of so-called frequency compensation, 
+we will apply ``Miller's compensation''.
+
+\subsection{Miller's Compensation Capacitor}
+After experimenting with different feedback
+capacitor placements, the best placement was 
+found to be a 200$\,$pF capacitor at the third stage.
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.60}{
+  \begin{circuitikz}
+    \node[npn, xscale=1] at (-1, 0) (Q5) {$Q_6$};
+
+    \draw (Q5.E) to[R=$R_5$] (-1, -4) node[vee] (vee) {$V_{\text{EE}}$};
+    \draw (Q5.C) to (-1, 4) node[vcc] (vcc) {$V_{\text{cc}}$};
+    \draw (0.75, -1) to [generic=Load] (0.75, -4) node[ground] {};
+    \draw (-1, -1) to [short, *-o] (0.75, -1) node[above right] {$V_o$};
+    \draw (-4, 0) node[above left] {$V_i$} to [short, o-] (Q5.B);
+    \draw (-3, 0) to[C, l={$C_m=200\,$pF$\,$}, *-] (-3, 3) to[short, -*] (-1, 3);
+  \end{circuitikz}
+  }
+  \caption{The Frequency Compensated Emitter-Follower}
+  \label{fig:emitterfollowerWithCap}
+\end{figure}
+
+Essentially, the capacitor will provide a pole, and due to Miller's effect, 
+the compensation capacitor will be amplified. Thus, a smaller capacitor can 
+be used, such as the chosen 200$\,$pF capacitor.
+% \begin{table}[H]
+%   \centering
+%   \caption{Testing Capacitors for Optimal Frequency Compensation}
+%   \scalebox{0.85}{
+%   \begin{tabular}{l c c}
+%     \toprule
+%     Parameter & Target & Achieved \\
+%     \midrule
+%     Open-Loop Gain $A$ & 60$\,$dB & 61.84$\,$dB \\[1ex]
+%     Power Dissipation $P_{\text{diss}}$ & $\leq$600$\,$mW & 58.4$\,$mW \\[1ex]
+%     Min Common-Mode Input Range $V_{\text{CM}_{\text{min}}}$ & N/A & -18.7$\,$V \\[1ex]
+%     Max Common-Mode Input Range $V_{\text{CM}_{\text{max}}}$ & N/A & 19$\,$V \\[1ex]
+%     Input Current $I_{\text{in}}$ & N/A & 0.8\,$\mu$A \\[1ex]
+%     Open-Loop Bandwidth & N/A & 0$\,$Hz to 8.54$\,$kHz \\[1ex]
+%     Closed-Loop Phase Margin & $\geq 45^\circ$ & $50.24^\circ$ \\[1ex]
+%     Closed-Loop Bandwidth & N/A & 0$\,$Hz to 1.115$\,$MHz \\[1ex]
+%     Closed-Loop Gain $A_f$ & 20$\,$dB & 20.0014$\,$dB \\[1ex]
+%     Closed-Loop Unity Gain & 0$\,$dB & 0$\,$dB \\
+%     \bottomrule
+%   \end{tabular}
+%   }
+% \end{table}
+However, this new pole becomes the new dominant pole, resulting in a loss of 
+bandwidth. However, at unity gain (0$\,$dB), we now have a phase of 
+approximately $-130^\circ$, thus we are now stable and have a phase margin of 
+approximately $50^\circ$, which is
+greater than $45^\circ$. See Fig. \ref{fig:freqcompengainBode} and \ref{fig:freqcompenphaseBode} 
+for this drawback.
+
+\section{Implementing Feedback and Building a Non-Inverting Amplifier}
+With the frequency-compensated Op-Amp, we can now introduce feedback. 
+
+\IEEEpubidadjcol
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/CompensatedGain.png}
+  \caption{Bode Plot of Open-Loop Gain After Frequency Compensation} 
+  \label{fig:freqcompengainBode}
+% \hrulefill
+\end{figure*}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/CompensatedPhase.png}
+  \caption{Bode Plot of Open-Loop Phase After Frequency Compensation} 
+  \label{fig:freqcompenphaseBode}
+  \hrulefill
+\end{figure*}
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.98}{
+  \begin{circuitikz}
+    \node[adder, scale=0.65] at (-3, 0) (adder) {};
+    \node[below right] at (adder.east) {$\mathbf{-}$};
+
+    \draw (adder.east) to[twoport, t={\tiny Op-Amp}, >] (2, 0);
+    \draw (2, 0) to[short, *-] (2, -2) to[twoport, t={\tiny \parbox{3.75em}{Resistor Network}}, >] (-2.6, -2);
+    \draw (2, 0) to[short, -o] (3, 0) node[right] {$V_o$};
+    \draw[arrows={-Stealth[inset=0pt]}] (-2.6, -2) -| (adder.south);
+    \draw[arrows={-Stealth[inset=0pt]}] (-4.5, 0) node[left] {$V_i$} to[short, o-] (adder.west);
+  \end{circuitikz}
+  }
+  \caption{Block Diagram for a Negative Feedback System}
+  \label{fig:blockdiagram}
+\end{figure}
+For a non-inverting amplifier, we expect the system to amplify the signal, but 
+not invert it. Thus, for any input $V_i$, we expect the output to be $\left|A_f\right|V_i$, 
+where $A_f$ is the gain of the feedback system. As Fig. \ref{fig:blockdiagram} suggests, the 
+feedback gain $A_f$ is given by the following equation.
+\begin{equation}
+  A_f = \frac{A}{1+A(s)\cdot B} = \frac{1}{\frac{1}{A(s)} + B}
+\end{equation}
+Where $A(s)$ is the open-loop gain of the Op-Amp and $B$ is the gain from feedback: the 
+``loop gain''. We have already designed $A(s)$, and for a desired $A_f$, we can solve 
+for $B$.
+\begin{equation}
+  B = \frac{1}{A_f} - \frac{1}{A(s)} = \frac{A(s) - A_f}{A_fA(s)}
+\end{equation}
+While this suggests that $B$ will or should be frequency-dependent, we 
+can assume that $A(s)$ is constant if $s$ is in the bandwidth found earlier.
+Thus, $B$ can be implemented as a non-frequency dependent system when 
+we consider this bandwidth.
+\begin{equation}
+  \label{eq:B_forma}
+  B = \frac{1}{A_f} - \frac{1}{A} = \frac{A - A_f}{A_fA}
+\end{equation}
+% Also note that even as $A(s)$ starts to decrease as shown in 
+% Fig. \ref{fig:openloopgainBodeLoaded}, 
+
+\IEEEpubidadjcol
+
+\subsection{Designing the Non-Inverting Amplifier}
+The goal is to design a non-inverting amplifier with $A_f = 20\,$dB$=10\,$V/V. 
+Recall that $A$ is already experimentally found to be approximately $61.84\,$dB$=1235.95\,$V/V.
+As such, $B$ can be calculated.
+\begin{align}
+  A_f &= 10 \\
+    A &\approx 1235.95 \\
+      &\implies B \approx \frac{1}{10} + \frac{1}{1235.95} \approx 0.10081 \,\text{V/V}
+\end{align}
+This is the gain we expect from our resistor-network. Since the gain is less than 
+one, we can consider using a \emph{Voltage-Divider} network.
+\begin{figure}[H]
+   \centering
+  \scalebox{0.98}{
+  \begin{circuitikz}
+    \draw (-2, -4.5) node[ground] {} to[R, l_=$R_b$] (-2, -2) node[above left] {$V_o^\prime = B\cdot V_i^\prime$};
+    \draw (-2, -2) to[R=$R_a$, o-o] (2, -2) node[above right] {$V_i^\prime$};
+  \end{circuitikz}
+  }
+  \caption{Voltage-Divider Network}
+  \label{fig:resistorDivider}
+\end{figure}
+As the analysis suggests, $B$ will simply be the ratio of $R_b$ to the sum of $R_a$ and $R_b$.
+\begin{equation}
+  \label{eq:designB}
+  B = \frac{V_o^\prime}{V_i^\prime} = \frac{R_b}{R_a+R_b}
+\end{equation}
+When we implement this as feedback into your system, $V_i^\prime = V_o$ and $V_o^\prime = B * V_o$.
+When we introduce the open-loop gain as our Op-Amp, we can use the idea that the Op-Amp 
+sees a differential input; in which the input is the potential difference from the non-inverting 
+terminal to the inverting terminal. As such, if we wire the output of our voltage-divider network 
+to the inverting terminal of the Op-Amp, we essentially achieve the same functionality as 
+the adder seen in Fig. \ref{fig:blockdiagram}; in which the adder acts as a subtracter.
+
+\begin{figure}[H]
+  \centering
+  \scalebox{0.98}{
+  \begin{circuitikz}
+    \node[op amp, noinv input up] at (0, 0) (opamp) {};
+    \node at (1, -5) {Voltage-Divider Network};
+
+    \draw (-2, -4.5) node[ground] {} to[R, l_=$R_i$] (-2, -2) |- (opamp.-);
+    \draw (-2, -2) to[R=$R_f$, *-] (2, -2) to[short, -*] (2, 0) to (opamp.out);
+    \draw (-2, 0.5) node[left] {$V_i$} to[short, o-] (opamp.+); 
+    \draw (opamp.out) to[short, -o] (2, 0) node[right] {$V_o$};
+
+    \draw[thin, dashed] (-3, -1.25) to (3, -1.25) to (3, -5.5) to (-3, -5.5) to (-3, -1.25);
+  \end{circuitikz}
+  }
+  \caption{Non-Inverting Amplifier}
+  \label{fig:nonInvertingOpamp}
+\end{figure}
+
+For the amplifier, we will let $R_a = R_f$ and $R_i = R_b$.
+
+Seeing as we already calculated $B$, we can now select values for $R_a$ and $R_b$. 
+An easy way to do this is to solve for one resistor in terms of the other given 
+that our network is relatively simple.
+\begin{align}
+  \text{Eq. \eqref{eq:designB}} &\implies BR_a + BR_b = R_b \\[1ex]
+                                &\implies R_b = \left(\frac{B}{1-B}\right) R_a
+\end{align}
+
+We can now select $R_a$ and then simply calculate $R_b$. Alternatively, we can 
+select $R_b$ and then calculate $R_a$.
+\begin{equation}
+  R_a = \left(\frac{1-B}{B}\right) R_b \\[1ex]
+\end{equation}
+
+Ideally, we should not lose any of our output. However, with a circuit, the 
+feedback and resistor-network will force some of the output current to flow 
+through the feedback loop, thus reducing the output. In order to remedy this, 
+$R_b$ can be chosen to be some resistance in the kilo-ohm range, thus 
+reducing the amount of current that flows through the feedback loop as 
+per current division. As such, we will choose $R_a$ to be $15\,$k$\Omega$. 
+\begin{equation}
+  R_a = 15\,\text{k}\Omega \implies R_b \approx 1681.68\,\Omega
+\end{equation}
+However, this is not an ideal number to work with, and in practice, is 
+inefficient due to resistor tolerance. Thus we will 
+select 1.65$\,$k$\Omega$ for $R_b$. See Fig. \ref{fig:feedbackScheme}
+for the schematic of the non-inverting Op-Amp.
+
+\subsubsection{Input Impedance of the Non-Inverting Amp}
+With the feedback added, the input impedance of the entire 
+system has changed. Without feedback, the input impedance 
+would just be the input impedance of the first stage $Z_{i_1}$, 
+but now, the input impedance is $Z_i$.
+\begin{equation}
+  \label{eq:inputImpedance}
+  Z_i = Z_{i_1} (1 + AB) \approx 3.85\,\text{M}\Omega
+\end{equation}
+
+To experimentally find the input impedance, we can apply a test source $V_x$ to the 
+terminal and measure the current 
+entering the amplifier. From here, calculate the ratio of the test source 
+voltage to input current, and this ratio should theoretically be the 
+input impedance. 
+
+\subsection{Results}
+With the non-inverting amplifier designed, we can now simulate it 
+and verify that it works to our specifications. An AC Sweep was 
+performed without a load attached to the output of the non-inverting amplifier.
+With that in mind, the bode plots of the gain and phase with feedback are provided
+(see Fig. \ref{fig:feedbackgainBode} and \ref{fig:feedbackphaseBode}).
+
+When we apply a sinusoidal input $v_i = 2\sin(\omega t)$ with $f = 1\,$kHz, 
+we observe the following.
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/TransientWaves.png}
+  \caption{Transient Analysis}
+  \label{fig:transientAnalysis}
+% \hrulefill
+\end{figure*}
+While we expect an output of approximately $v_o = 20\sin(\omega t)$, we instead 
+get some kind of distortion (see Fig. \ref{fig:transientAnalysis}). This is due to the results of the DC transfer 
+as seen in Fig. \ref{fig:dctransfer}, in which the linear operating range is 
+only in the millivolts. With the feedback, this range failed to include 
+up to 2 volts as shown in Fig. \ref{fig:dcSweep}; in which our range 
+of inputs that produce linear outputs is only between approximately -0.4$\,$V 
+and 1.8$\,$V.
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/DCSweep.png}
+  \caption{DC Sweep for Non-Inverting Amplifier}
+  \label{fig:dcSweep}
+% \hrulefill
+\end{figure*}
+
+\IEEEpubidadjcol
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/FeedbackGain.png}
+  \caption{Bode Plot of Non-Inverting Amplifier Gain}
+  \label{fig:feedbackgainBode}
+% \hrulefill
+\end{figure*}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{Matlab_Code/Plots/FeedbackPhase.png}
+  \caption{Bode Plot of Non-Inverting Amplifier Phase} 
+  \label{fig:feedbackphaseBode}
+  \hrulefill
+\end{figure*}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\textwidth]{schemeFeedback.png}
+  \caption{Non-Inverting Op-Amp Schematic}
+  \label{fig:feedbackScheme}
+  % \hrulefill
+\end{figure*}
+
+
+\section{Conclusion}
+We can summarize the final design with a table of specifications (see Table \ref{tab:specs})
+In short, the Op-Amp is itself a complicated and sensitive device. However, when 
+combined with feedback, it can produce powerful results. Furthermore, optimizations 
+to the Op-Amp itself help with these feedback implementations. As a drawback, the 
+gain of the Op-Amp is not used to amplify signals directly, but to ensure that 
+feedback is stable. Alternative designs of this Op-Amp may involve using additional 
+stages to further increase open-loop gain, but that comes at the cost of using 
+more transistors as well as a higher power dissipation. As for the types of 
+transistors used, using MOSFETs instead of BJTs would allow for the Op-Amp to 
+have infinite input impedance and lower power dissipation. Overall, there are 
+many different designs for an Op-Amp; in which the design process of an Op-Amp 
+will involve a theoretical analysis followed by experimental optimizations.
+\begin{table*}[!t]
+  \centering
+  \caption{Op-Amp Specifications}
+  \label{tab:specs}
+  \scalebox{1.25}{
+  \begin{tabular}{l c c}
+    \toprule
+    Parameter & Target & Achieved \\
+    \midrule
+    Open-Loop Gain $A$ & 60$\,$dB & 61.84$\,$dB \\[1ex]
+    Power Dissipation $P_{\text{diss}}$ & $\leq$600$\,$mW & 58.4$\,$mW \\[1ex]
+    Min Common-Mode Input Range $V_{\text{CM}_{\text{min}}}$ & N/A & -18.7$\,$V \\[1ex]
+    Max Common-Mode Input Range $V_{\text{CM}_{\text{max}}}$ & N/A & 19$\,$V \\[1ex]
+    Input Current $I_{\text{in}}$ & N/A & 0.8\,$\mu$A \\[1ex]
+    Open-Loop Bandwidth & N/A & 0$\,$Hz to 8.54$\,$kHz \\[1ex]
+    Closed-Loop Phase Margin & $\geq 45^\circ$ & $123.45^\circ$ \\[1ex]
+    Closed-Loop Bandwidth & N/A & 0$\,$Hz to 1.115$\,$MHz \\[1ex]
+    Closed-Loop Gain $A_f$ & 20$\,$dB & 20.0014$\,$dB \\[1ex]
+    Closed-Loop Unity Gain & 0$\,$dB & 0$\,$dB \\[1ex]
+    Voltage Overshoot & 0$\,$V & -1.93$\,$V \\
+    \bottomrule
+  \end{tabular}
+  }
+\end{table*}
+
+% \section{Where to Get \LaTeX \ Help --- User Groups}
+% The following online groups are helpful to beginning and experienced \LaTeX\ users. A search through their archives can provide many answers to common questions.
+% \begin{list}{}{}
+% \item{\url{http://www.latex-community.org/}} 
+% \item{\url{https://tex.stackexchange.com/} }
+% \end{list}
+
+
+% \section{Other Resources}
+% See \cite{ref1,ref2,ref3,ref4,ref5} for resources on formatting math into text and additional help in working with \LaTeX .
+
+% \section{Text}
+
+
+% \begin{equation}
+% \label{deqn_ex1a}
+% x = \sum_{i=0}^{n} 2{i} Q.
+% \end{equation}
+
+% \section{Some Common Elements}
+% \subsection{Sections and Subsections}
+% % Enumeration of section headings is desirable, but not required. When numbered, please be consistent throughout the article, that is, all headings and all levels of section headings in the article should be enumerated. Primary headings are designated with Roman numerals, secondary with capital letters, tertiary with Arabic numbers; and quaternary with lowercase letters. Reference and Acknowledgment headings are unlike all other section headings in text. They are never enumerated. They are simply primary headings without labels, regardless of whether the other headings in the article are enumerated. 
+
+% \subsection{Citations to the Bibliography}
+% % The coding for the citations is made with the \LaTeX\ $\backslash${\tt{cite}} command. 
+% % This will display as: see \cite{ref1}.
+
+% % For multiple citations code as follows: {\tt{$\backslash$cite\{ref1,ref2,ref3\}}}
+% %  which will produce \cite{ref1,ref2,ref3}. For reference ranges that are not consecutive code as {\tt{$\backslash$cite\{ref1,ref2,ref3,ref9\}}} which will produce  \cite{ref1,ref2,ref3,ref9}
+
+% \subsection{Lists}
+% % In this section, we will consider three types of lists: simple unnumbered, numbered, and bulleted. There have been many options added to IEEEtran to enhance the creation of lists. If your lists are more complex than those shown below, please refer to the original ``IEEEtran\_HOWTO.pdf'' for additional options.\\
+
+% \subsubsection*{\bf A plain  unnumbered list}
+% \begin{list}{}{}
+% \item{bare\_jrnl.tex}
+% \item{bare\_conf.tex}
+% \item{bare\_jrnl\_compsoc.tex}
+% \item{bare\_conf\_compsoc.tex}
+% \item{bare\_jrnl\_comsoc.tex}
+% \end{list}
+
+% \subsubsection*{\bf A simple numbered list}
+% \begin{enumerate}
+% \item{bare\_jrnl.tex}
+% \item{bare\_conf.tex}
+% \item{bare\_jrnl\_compsoc.tex}
+% \item{bare\_conf\_compsoc.tex}
+% \item{bare\_jrnl\_comsoc.tex}
+% \end{enumerate}
+
+% \subsubsection*{\bf A simple bulleted list}
+% \begin{itemize}
+% \item{bare\_jrnl.tex}
+% \item{bare\_conf.tex}
+% \item{bare\_jrnl\_compsoc.tex}
+% \item{bare\_conf\_compsoc.tex}
+% \item{bare\_jrnl\_comsoc.tex}
+% \end{itemize}
+
+% \subsection{Figures}
+% Fig. 1 is an example of a floating figure using the graphicx package.
+%  Note that $\backslash${\tt{label}} must occur AFTER (or within) $\backslash${\tt{caption}}.
+%  For figures, $\backslash${\tt{caption}} should occur after the $\backslash${\tt{includegraphics}}.
+
+% \begin{figure}[!t]
+% \centering
+% \includegraphics[width=2.5in]{fig1}
+% \caption{Simulation results for the network.}
+% \label{fig_1}
+% \end{figure}
+
+% Fig. 2(a) and 2(b) is an example of a double column floating figure using two subfigures.
+%  (The subfig.sty package must be loaded for this to work.)
+%  The subfigure $\backslash${\tt{label}} commands are set within each subfloat command,
+%  and the $\backslash${\tt{label}} for the overall figure must come after $\backslash${\tt{caption}}.
+%  $\backslash${\tt{hfil}} is used as a separator to get equal spacing.
+%  The combined width of all the parts of the figure should do not exceed the text width or a line break will occur.
+% %
+% \begin{figure*}[!t]
+% \centering
+% \subfloat[]{\includegraphics[width=2.5in]{fig1}%
+% \label{fig_first_case}}
+% \hfil
+% \subfloat[]{\includegraphics[width=2.5in]{fig1}%
+% \label{fig_second_case}}
+% \caption{Dae. Ad quatur autat ut porepel itemoles dolor autem fuga. Bus quia con nessunti as remo di quatus non perum que nimus. (a) Case I. (b) Case II.}
+% \label{fig_sim}
+% \end{figure*}
+
+% Note that often IEEE papers with multi-part figures do not place the labels within the image itself (using the optional argument to $\backslash${\tt{subfloat}}[]), but instead will
+%  reference/describe all of them (a), (b), etc., within the main caption.
+%  Be aware that for subfig.sty to generate the (a), (b), etc., subfigure
+%  labels, the optional argument to $\backslash${\tt{subfloat}} must be present. If a
+%  subcaption is not desired, leave its contents blank,
+%  e.g.,$\backslash${\tt{subfloat}}[].
+
+
+ 
+
+% \section{Tables}
+% Note that, for IEEE-style tables, the
+%  $\backslash${\tt{caption}} command should come BEFORE the table. Table captions use title case. Articles (a, an, the), coordinating conjunctions (and, but, for, or, nor), and most short prepositions are lowercase unless they are the first or last word. Table text will default to $\backslash${\tt{footnotesize}} as
+%  the IEEE normally uses this smaller font for tables.
+%  The $\backslash${\tt{label}} must come after $\backslash${\tt{caption}} as always.
+ 
+% \begin{table}[!t]
+% \caption{An Example of a Table\label{tab:table1}}
+% \centering
+% \begin{tabular}{|c||c|}
+% \hline
+% One & Two\\
+% \hline
+% Three & Four\\
+% \hline
+% \end{tabular}
+% \end{table}
+
+% \section{Algorithms}
+% Algorithms should be numbered and include a short title. They are set off from the text with rules above and below the title and after the last line.
+
+% \begin{algorithm}[H]
+% \caption{Weighted Tanimoto ELM.}\label{alg:alg1}
+% \begin{algorithmic}
+% \STATE 
+% \STATE {\textsc{TRAIN}}$(\mathbf{X} \mathbf{T})$
+% \STATE \hspace{0.5cm}$ \textbf{select randomly } W \subset \mathbf{X}  $
+% \STATE \hspace{0.5cm}$ N_\mathbf{t} \gets | \{ i : \mathbf{t}_i = \mathbf{t} \} | $ \textbf{ for } $ \mathbf{t}= -1,+1 $
+% \STATE \hspace{0.5cm}$ B_i \gets \sqrt{ \textsc{max}(N_{-1},N_{+1}) / N_{\mathbf{t}_i} } $ \textbf{ for } $ i = 1,...,N $
+% \STATE \hspace{0.5cm}$ \hat{\mathbf{H}} \gets  B \cdot (\mathbf{X}^T\textbf{W})/( \mathbb{1}\mathbf{X} + \mathbb{1}\textbf{W} - \mathbf{X}^T\textbf{W} ) $
+% \STATE \hspace{0.5cm}$ \beta \gets \left ( I/C + \hat{\mathbf{H}}^T\hat{\mathbf{H}} \right )^{-1}(\hat{\mathbf{H}}^T B\cdot \mathbf{T})  $
+% \STATE \hspace{0.5cm}\textbf{return}  $\textbf{W},  \beta $
+% \STATE 
+% \STATE {\textsc{PREDICT}}$(\mathbf{X} )$
+% \STATE \hspace{0.5cm}$ \mathbf{H} \gets  (\mathbf{X}^T\textbf{W} )/( \mathbb{1}\mathbf{X}  + \mathbb{1}\textbf{W}- \mathbf{X}^T\textbf{W}  ) $
+% \STATE \hspace{0.5cm}\textbf{return}  $\textsc{sign}( \mathbf{H} \beta )$
+% \end{algorithmic}
+% \label{alg1}
+% \end{algorithm}
+
+% Que sunt eum lam eos si dic to estist, culluptium quid qui nestrum nobis reiumquiatur minimus minctem. Ro moluptat fuga. Itatquiam ut laborpo rersped exceres vollandi repudaerem. Ulparci sunt, qui doluptaquis sumquia ndestiu sapient iorepella sunti veribus. Ro moluptat fuga. Itatquiam ut laborpo rersped exceres vollandi repudaerem. 
+% \section{Mathematical Typography \\ and Why It Matters}
+
+% Typographical conventions for mathematical formulas have been developed to {\bf provide uniformity and clarity of presentation across mathematical texts}. This enables the readers of those texts to both understand the author's ideas and to grasp new concepts quickly. While software such as \LaTeX \ and MathType\textsuperscript{\textregistered} can produce aesthetically pleasing math when used properly, it is also very easy to misuse the software, potentially resulting in incorrect math display.
+
+% IEEE aims to provide authors with the proper guidance on mathematical typesetting style and assist them in writing the best possible article. As such, IEEE has assembled a set of examples of good and bad mathematical typesetting \cite{ref1,ref2,ref3,ref4,ref5}. 
+
+% Further examples can be found at \url{http://journals.ieeeauthorcenter.ieee.org/wp-content/uploads/sites/7/IEEE-Math-Typesetting-Guide-for-LaTeX-Users.pdf}
+
+% \subsection{Display Equations}
+% The simple display equation example shown below uses the ``equation'' environment. To number the equations, use the $\backslash${\tt{label}} macro to create an identifier for the equation. LaTeX will automatically number the equation for you.
+% \begin{equation}
+% \label{deqn_ex1}
+% x = \sum_{i=0}^{n} 2{i} Q.
+% \end{equation}
+
+% \noindent is coded as follows:
+% \begin{verbatim}
+% \begin{equation}
+% \label{deqn_ex1}
+% x = \sum_{i=0}^{n} 2{i} Q.
+% \end{equation}
+% \end{verbatim}
+
+% To reference this equation in the text use the $\backslash${\tt{ref}} macro. 
+% Please see (\ref{deqn_ex1})\\
+% \noindent is coded as follows:
+% \begin{verbatim}
+% Please see (\ref{deqn_ex1})\end{verbatim}
+
+% \subsection{Equation Numbering}
+% {\bf{Consecutive Numbering:}} Equations within an article are numbered consecutively from the beginning of the
+% article to the end, i.e., (1), (2), (3), (4), (5), etc. Do not use roman numerals or section numbers for equation numbering.
+
+% \noindent {\bf{Appendix Equations:}} The continuation of consecutively numbered equations is best in the Appendix, but numbering
+%  as (A1), (A2), etc., is permissible.\\
+
+% \noindent {\bf{Hyphens and Periods}}: Hyphens and periods should not be used in equation numbers, i.e., use (1a) rather than
+% (1-a) and (2a) rather than (2.a) for subequations. This should be consistent throughout the article.
+
+% \subsection{Multi-Line Equations and Alignment}
+% Here we show several examples of multi-line equations and proper alignments.
+
+% \noindent {\bf{A single equation that must break over multiple lines due to length with no specific alignment.}}
+% \begin{multline}
+% \text{The first line of this example}\\
+% \text{The second line of this example}\\
+% \text{The third line of this example}
+% \end{multline}
+
+% \noindent is coded as:
+% \begin{verbatim}
+% \begin{multline}
+% \text{The first line of this example}\\
+% \text{The second line of this example}\\
+% \text{The third line of this example}
+% \end{multline}
+% \end{verbatim}
+
+% \noindent {\bf{A single equation with multiple lines aligned at the = signs}}
+% \begin{align}
+% a &= c+d \\
+% b &= e+f
+% \end{align}
+% \noindent is coded as:
+% \begin{verbatim}
+% \begin{align}
+% a &= c+d \\
+% b &= e+f
+% \end{align}
+% \end{verbatim}
+
+% The {\tt{align}} environment can align on multiple  points as shown in the following example:
+% \begin{align}
+% x &= y & X & =Y & a &=bc\\
+% x' &= y' & X' &=Y' &a' &=bz
+% \end{align}
+% \noindent is coded as:
+% \begin{verbatim}
+% \begin{align}
+% x &= y & X & =Y & a &=bc\\
+% x' &= y' & X' &=Y' &a' &=bz
+% \end{align}
+% \end{verbatim}
+
+
+
+
+
+% \subsection{Subnumbering}
+% The amsmath package provides a {\tt{subequations}} environment to facilitate subnumbering. An example:
+
+% \begin{subequations}\label{eq:2}
+% \begin{align}
+% f&=g \label{eq:2A}\\
+% f' &=g' \label{eq:2B}\\
+% \mathcal{L}f &= \mathcal{L}g \label{eq:2c}
+% \end{align}
+% \end{subequations}
+
+% \noindent is coded as:
+% \begin{verbatim}
+% \begin{subequations}\label{eq:2}
+% \begin{align}
+% f&=g \label{eq:2A}\\
+% f' &=g' \label{eq:2B}\\
+% \mathcal{L}f &= \mathcal{L}g \label{eq:2c}
+% \end{align}
+% \end{subequations}
+
+% \end{verbatim}
+
+% \subsection{Matrices}
+% There are several useful matrix environments that can save you some keystrokes. See the example coding below and the output.
+
+% \noindent {\bf{A simple matrix:}}
+% \begin{equation}
+% \begin{matrix}  0 &  1 \\ 
+% 1 &  0 \end{matrix}
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \begin{matrix}  0 &  1 \\ 
+% 1 &  0 \end{matrix}
+% \end{equation}
+% \end{verbatim}
+
+% \noindent {\bf{A matrix with parenthesis}}
+% \begin{equation}
+% \begin{pmatrix} 0 & -i \\
+%  i &  0 \end{pmatrix}
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \begin{pmatrix} 0 & -i \\
+%  i &  0 \end{pmatrix}
+% \end{equation}
+% \end{verbatim}
+
+% \noindent {\bf{A matrix with square brackets}}
+% \begin{equation}
+% \begin{bmatrix} 0 & -1 \\ 
+% 1 &  0 \end{bmatrix}
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \begin{bmatrix} 0 & -1 \\ 
+% 1 &  0 \end{bmatrix}
+% \end{equation}
+% \end{verbatim}
+
+% \noindent {\bf{A matrix with curly braces}}
+% \begin{equation}
+% \begin{Bmatrix} 1 &  0 \\ 
+% 0 & -1 \end{Bmatrix}
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \begin{Bmatrix} 1 &  0 \\ 
+% 0 & -1 \end{Bmatrix}
+% \end{equation}\end{verbatim}
+
+% \noindent {\bf{A matrix with single verticals}}
+% \begin{equation}
+% \begin{vmatrix} a &  b \\ 
+% c &  d \end{vmatrix}
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \begin{vmatrix} a &  b \\ 
+% c &  d \end{vmatrix}
+% \end{equation}\end{verbatim}
+
+% \noindent {\bf{A matrix with double verticals}}
+% \begin{equation}
+% \begin{Vmatrix} i &  0 \\ 
+% 0 & -i \end{Vmatrix}
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \begin{Vmatrix} i &  0 \\ 
+% 0 & -i \end{Vmatrix}
+% \end{equation}\end{verbatim}
+
+% \subsection{Arrays}
+% The {\tt{array}} environment allows you some options for matrix-like equations. You will have to manually key the fences, but there are other options for alignment of the columns and for setting horizontal and vertical rules. The argument to {\tt{array}} controls alignment and placement of vertical rules.
+
+% A simple array
+% \begin{equation}
+% \left(
+% \begin{array}{cccc}
+% a+b+c & uv & x-y & 27\\
+% a+b & u+v & z & 134
+% \end{array}\right)
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \left(
+% \begin{array}{cccc}
+% a+b+c & uv & x-y & 27\\
+% a+b & u+v & z & 134
+% \end{array} \right)
+% \end{equation}
+% \end{verbatim}
+
+% A slight variation on this to better align the numbers in the last column
+% \begin{equation}
+% \left(
+% \begin{array}{cccr}
+% a+b+c & uv & x-y & 27\\
+% a+b & u+v & z & 134
+% \end{array}\right)
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \left(
+% \begin{array}{cccr}
+% a+b+c & uv & x-y & 27\\
+% a+b & u+v & z & 134
+% \end{array} \right)
+% \end{equation}
+% \end{verbatim}
+
+% An array with vertical and horizontal rules
+% \begin{equation}
+% \left( \begin{array}{c|c|c|r}
+% a+b+c & uv & x-y & 27\\ \hline
+% a+b & u+v & z & 134
+% \end{array}\right)
+% \end{equation}
+% is coded as:
+% \begin{verbatim}
+% \begin{equation}
+% \left(
+% \begin{array}{c|c|c|r}
+% a+b+c & uv & x-y & 27\\
+% a+b & u+v & z & 134
+% \end{array} \right)
+% \end{equation}
+% \end{verbatim}
+% Note the argument now has the pipe "$\vert$" included to indicate the placement of the vertical rules.
+
+
+% \subsection{Cases Structures}
+% Many times cases can be miscoded using the wrong environment, i.e., {\tt{array}}. Using the {\tt{cases}} environment will save keystrokes (from not having to type the $\backslash${\tt{left}}$\backslash${\tt{lbrace}}) and automatically provide the correct column alignment.
+% \begin{equation*}
+% {z_m(t)} = \begin{cases}
+% 1,&{\text{if}}\ {\beta }_m(t) \\ 
+% {0,}&{\text{otherwise.}} 
+% \end{cases}
+% \end{equation*}
+% \noindent is coded as follows:
+% \begin{verbatim}
+% \begin{equation*}
+% {z_m(t)} = 
+% \begin{cases}
+% 1,&{\text{if}}\ {\beta }_m(t),\\ 
+% {0,}&{\text{otherwise.}} 
+% \end{cases}
+% \end{equation*}
+% \end{verbatim}
+% \noindent Note that the ``\&'' is used to mark the tabular alignment. This is important to get  proper column alignment. Do not use $\backslash${\tt{quad}} or other fixed spaces to try and align the columns. Also, note the use of the $\backslash${\tt{text}} macro for text elements such as ``if'' and ``otherwise.''
+
+% \subsection{Function Formatting in Equations}
+% Often, there is an easy way to properly format most common functions. Use of the $\backslash$ in front of the function name will in most cases, provide the correct formatting. When this does not work, the following example provides a solution using the $\backslash${\tt{text}} macro:
+
+% \begin{equation*} 
+%   d_{R}^{KM} = \underset {d_{l}^{KM}} {\text{arg min}} \{ d_{1}^{KM},\ldots,d_{6}^{KM}\}.
+% \end{equation*}
+
+% \noindent is coded as follows:
+% \begin{verbatim}
+% \begin{equation*} 
+%  d_{R}^{KM} = \underset {d_{l}^{KM}} 
+%  {\text{arg min}} \{ d_{1}^{KM},
+%  \ldots,d_{6}^{KM}\}.
+% \end{equation*}
+% \end{verbatim}
+
+% \subsection{ Text Acronyms Inside Equations}
+% This example shows where the acronym ``MSE" is coded using $\backslash${\tt{text\{\}}} to match how it appears in the text.
+
+% \begin{equation*}
+%  \text{MSE} = \frac {1}{n}\sum _{i=1}^{n}(Y_{i} - \hat {Y_{i}})^{2}
+% \end{equation*}
+
+% \begin{verbatim}
+% \begin{equation*}
+%  \text{MSE} = \frac {1}{n}\sum _{i=1}^{n}
+% (Y_{i} - \hat {Y_{i}})^{2}
+% \end{equation*}
+% \end{verbatim}
+
+% \section{Conclusion}
+% The conclusion goes here.
+
+
+% \section*{Acknowledgments}
+% This should be a simple paragraph before the References to thank those individuals and institutions who have supported your work on this article.
+
+
+
+% {\appendix[Proof of the Zonklar Equations]
+% Use $\backslash${\tt{appendix}} if you have a single appendix:
+% Do not use $\backslash${\tt{section}} anymore after $\backslash${\tt{appendix}}, only $\backslash${\tt{section*}}.
+% If you have multiple appendixes use $\backslash${\tt{appendices}} then use $\backslash${\tt{section}} to start each appendix.
+% You must declare a $\backslash${\tt{section}} before using any $\backslash${\tt{subsection}} or using $\backslash${\tt{label}} ($\backslash${\tt{appendices}} by itself
+%  starts a section numbered zero.)}
+
+
+
+% %{\appendices
+% %\section*{Proof of the First Zonklar Equation}
+% %Appendix one text goes here.
+% % You can choose not to have a title for an appendix if you want by leaving the argument blank
+% %\section*{Proof of the Second Zonklar Equation}
+% %Appendix two text goes here.}
+
+
+
+% \section{References Section}
+% You can use a bibliography generated by BibTeX as a .bbl file.
+%  BibTeX documentation can be easily obtained at:
+%  http://mirror.ctan.org/biblio/bibtex/contrib/doc/
+%  The IEEEtran BibTeX style support page is:
+%  http://www.michaelshell.org/tex/ieeetran/bibtex/
+ 
+%  % argument is your BibTeX string definitions and bibliography database(s)
+% %\bibliography{IEEEabrv,../bib/paper}
+% %
+% \section{Simple References}
+% You can manually copy in the resultant .bbl file and set second argument of $\backslash${\tt{begin}} to the number of references
+%  (used to reserve space for the reference number labels box).
+
+% \begin{thebibliography}{1}
+% \bibliographystyle{IEEEtran}
+
+% \bibitem{ref1}
+% {\it{Mathematics Into Type}}. American Mathematical Society. [Online]. Available: https://www.ams.org/arc/styleguide/mit-2.pdf
+
+% \bibitem{ref2}
+% T. W. Chaundy, P. R. Barrett and C. Batey, {\it{The Printing of Mathematics}}. London, U.K., Oxford Univ. Press, 1954.
+
+% \bibitem{ref3}
+% F. Mittelbach and M. Goossens, {\it{The \LaTeX Companion}}, 2nd ed. Boston, MA, USA: Pearson, 2004.
+
+% \bibitem{ref4}
+% G. Gr\"atzer, {\it{More Math Into LaTeX}}, New York, NY, USA: Springer, 2007.
+
+% \bibitem{ref5}M. Letourneau and J. W. Sharp, {\it{AMS-StyleGuide-online.pdf,}} American Mathematical Society, Providence, RI, USA, [Online]. Available: http://www.ams.org/arc/styleguide/index.html
+
+% \bibitem{ref6}
+% H. Sira-Ramirez, ``On the sliding mode control of nonlinear systems,'' \textit{Syst. Control Lett.}, vol. 19, pp. 303--312, 1992.
+
+% \bibitem{ref7}
+% A. Levant, ``Exact differentiation of signals with unbounded higher derivatives,''  in \textit{Proc. 45th IEEE Conf. Decis.
+% Control}, San Diego, CA, USA, 2006, pp. 5585--5590. DOI: 10.1109/CDC.2006.377165.
+
+% \bibitem{ref8}
+% M. Fliess, C. Join, and H. Sira-Ramirez, ``Non-linear estimation is easy,'' \textit{Int. J. Model., Ident. Control}, vol. 4, no. 1, pp. 12--27, 2008.
+
+% \bibitem{ref9}
+% R. Ortega, A. Astolfi, G. Bastin, and H. Rodriguez, ``Stabilization of food-chain systems using a port-controlled Hamiltonian description,'' in \textit{Proc. Amer. Control Conf.}, Chicago, IL, USA,
+% 2000, pp. 2245--2249.
+
+% \end{thebibliography}
+
+
+% \newpage
+
+% \section{Biography Section}
+% If you have an EPS/PDF photo (graphicx package needed), extra braces are
+%  needed around the contents of the optional argument to biography to prevent
+%  the LaTeX parser from getting confused when it sees the complicated
+%  $\backslash${\tt{includegraphics}} command within an optional argument. (You can create
+%  your own custom macro containing the $\backslash${\tt{includegraphics}} command to make things
+%  simpler here.)
+ 
+% \vspace{11pt}
+
+% \bf{If you include a photo:}\vspace{-33pt}
+% \begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{fig1}}]{Michael Shell}
+% Use $\backslash${\tt{begin\{IEEEbiography\}}} and then for the 1st argument use $\backslash${\tt{includegraphics}} to declare and link the author photo.
+% Use the author name as the 3rd argument followed by the biography text.
+% \end{IEEEbiography}
+
+% \vspace{11pt}
+
+% \bf{If you will not include a photo:}\vspace{-33pt}
+% \begin{IEEEbiographynophoto}{John Doe}
+% Use $\backslash${\tt{begin\{IEEEbiographynophoto\}}} and the author name as the argument followed by the biography text.
+% \end{IEEEbiographynophoto}
+
+
+
+
+\vfill
+
+\end{document}
+
+
